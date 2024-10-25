@@ -14,6 +14,7 @@ export default class WeeklyPlugin extends Plugin{
 
 	async onload() {
 		await this.loadSettings();
+		this.addSettingTab(new WeeklyPluginSettingTab(this.app, this)); 
 
 		this.addCommand({
 			id: 'create-weekly-note',
@@ -27,15 +28,13 @@ export default class WeeklyPlugin extends Plugin{
 			(evt: MouseEvent) => {
 				this.createWeeklyNote();
 			});
-
-		this.addSettingTab(new WeeklyPluginSettingTab(this.app, this))
 	}
 
 	async createWeeklyNote() {
 		const startOfWeek = moment().startOf('isoWeek');
 		const endOfWeek = moment().endOf('isoWeek');
 		
-		const folderPath = 'Mind/Diary';
+		const folderPath = this.settings.weeklyFolder;
 		const folder = this.app.vault.getAbstractFileByPath(folderPath);
 
 		if (!folder || !(folder instanceof TFolder)) {
@@ -49,15 +48,18 @@ export default class WeeklyPlugin extends Plugin{
 
 		if (!file || !(file instanceof TFile)) {
 			file = await this.app.vault.create(filePath, '');
-			if (file instanceof TFile) {
-				const leaf = this.app.workspace.getLeaf('tab'); 
-				await leaf.openFile(file);
-			}
-		} else {
-			if (file instanceof TFile) {
-				const leaf = this.app.workspace.getLeaf('tab');
-				await leaf.openFile(file);
-			}
+		}
+
+		let isOpened = false;
+		this.app.workspace.iterateAllLeaves((l) => {
+			if ((l.view as any).file && (l.view as any).file.path === file.path) {
+				isOpened = true;
+			} 
+		});
+
+		if (file instanceof TFile && !isOpened) {
+			let leaf = this.app.workspace.getLeaf('tab');
+			leaf.openFile(file);
 		}
 	}	
 
@@ -86,9 +88,7 @@ class WeeklyPluginSettingTab extends PluginSettingTab {
 
     display(): void {
         const { containerEl } = this;
-
         containerEl.empty();
-
         containerEl.createEl('h1', { text: 'Settings for Weekly Plugin' });
 
         new Setting(containerEl)
@@ -99,15 +99,13 @@ class WeeklyPluginSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.weeklyFolder)
                 .onChange(async (value) => {
                     this.plugin.settings.weeklyFolder = value;
-                }));
-
-		new Setting(containerEl)
-		.addButton(button => button
-			.setButtonText('Save')
-			.setCta()
-			.onClick(async () => {
-				await this.plugin.saveSettings();
-				new Notice('Settings saved');
-			}));
+                }))
+			.addButton(button => button
+				.setButtonText('Save')
+				.setCta()
+				.onClick(async () => {
+					await this.plugin.saveSettings();
+					new Notice('Settings saved');
+				}));
 }
 }
